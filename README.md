@@ -1,4 +1,3 @@
-
 ## Init
 
 `pip install uv`
@@ -23,7 +22,7 @@
 
 `cd client`
 
-`pyinstaller -F --name "LinkPlay" --add-data "templates;templates" --add-data "static;static" client.py`
+`uv run pyinstaller -F --name "LinkPlay" --add-data "templates;templates" --add-data "static;static" client.py`
 
 folded with `ffmpeg.exe`, `ffprobe.exe`
 
@@ -31,6 +30,6 @@ folded with `ffmpeg.exe`, `ffprobe.exe`
 
 `cd client`
 
-`pyinstaller -F --name "LinkPlay" --add-data "templates:templates" --add-data "static:static" client.py`
+`uv run pyinstaller -F --name "LinkPlay" --add-data "templates:templates" --add-data "static:static" client.py`
 
 `chmod +x LinkPlay`
