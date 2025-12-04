@@ -8,6 +8,7 @@ export const UI = {
 
         for (const url of urls) {
             const tr = document.createElement('tr');
+            tr.className = "playlist-row hover group"; // group 用于控制子元素显示
             
             // 生成唯一ID，用于后续更新DOM
             const safeId = btoa(url).replace(/=/g, '').slice(0, 10);

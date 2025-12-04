@@ -6,13 +6,11 @@ import { UI } from './ui.js';
 let socket = null;
 let timeSyncer = null;
 let player = null;
-// 新增：用于存储当前歌单数据以便导出
 let currentPlaylistData = []; 
 
+// --- 连接部分保持不变 ---
 const connectBtn = document.getElementById('connectBtn');
 const urlInput = document.getElementById('serverUrlInput');
-
-// --- 保持原有的连接逻辑 ---
 const savedUrl = localStorage.getItem('server_url');
 if (savedUrl) urlInput.value = savedUrl;
 
@@ -40,7 +38,6 @@ connectBtn.addEventListener('click', () => {
     });
 
     socket.on('update_playlist', (playlist) => {
-        // 更新本地变量
         currentPlaylistData = playlist;
         UI.renderPlaylist(playlist, socket);
     });
@@ -50,88 +47,77 @@ connectBtn.addEventListener('click', () => {
     });
 });
 
-// --- 新增逻辑：BV转换与URL验证函数 ---
+// --- URL验证和添加逻辑 (保持不变) ---
 function processInputUrl(input) {
     let url = input.trim();
-    
-    // 1. BV号识别 (简单的正则: BV开头，后面接字母数字)
-    // 例如输入: BV1NcuUzJESu
     const bvRegex = /^(BV[a-zA-Z0-9]+)$/;
-    if (bvRegex.test(url)) {
-        url = `https://www.bilibili.com/video/${url}`;
-        console.log(`检测到BV号，自动转换为: ${url}`);
-    }
-
-    // 2. URL 格式验证
+    if (bvRegex.test(url)) url = `https://www.bilibili.com/video/${url}`;
     try {
         const urlObj = new URL(url);
-        if (!['http:', 'https:'].includes(urlObj.protocol)) {
-            throw new Error("Protocol must be http or https");
-        }
-        return urlObj.href; // 返回标准化后的URL
+        if (!['http:', 'https:'].includes(urlObj.protocol)) throw new Error();
+        return urlObj.href;
     } catch (e) {
-        // 如果不是标准URL，尝试补全 http:// 再测一次 (针对 www.baidu.com 这种情况)
         if (!url.startsWith('http')) {
-            try {
-                const fixedUrl = new URL('http://' + url);
-                return fixedUrl.href;
-            } catch (e2) {}
+            try { return new URL('http://' + url).href; } catch (e2) {}
         }
-        alert("请输入有效的 HTTP/HTTPS 链接或 Bilibili BV号");
+        alert("无效的链接");
         return null;
     }
 }
 
-// --- 修改：添加歌曲按钮逻辑 ---
 document.getElementById('addSongBtn').addEventListener('click', () => {
     const inputEl = document.getElementById('newSongUrl');
-    const rawValue = inputEl.value;
-    
-    if (!rawValue) return;
-
-    const validUrl = processInputUrl(rawValue);
-    
+    const validUrl = processInputUrl(inputEl.value);
     if (validUrl && socket && socket.connected) {
-        // 检查是否重复 (可选)
-        if (currentPlaylistData.includes(validUrl)) {
-            alert("该链接已在歌单中");
-            return;
-        }
+        if (currentPlaylistData.includes(validUrl)) { alert("已存在"); return; }
         socket.emit('add_song', { url: validUrl });
         inputEl.value = '';
     }
 });
 
-// --- 新增：导出功能 ---
+// ==========================================
+//   核心修改区域：导出与导入逻辑
+// ==========================================
+
+// --- 1. 导出功能 (包含标题) ---
 document.getElementById('exportBtn').addEventListener('click', () => {
     if (currentPlaylistData.length === 0) {
-        alert("歌单为空，无法导出");
+        alert("歌单为空");
         return;
     }
     
-    // 构造 JSON (这里只导出URL列表，因为标题等元数据是本地缓存的，
-    // 导出URL列表在任何人的电脑上都能重新解析)
-    const dataStr = JSON.stringify(currentPlaylistData, null, 2);
+    // 组装数据：[{url: "...", title: "..."}, ...]
+    const exportList = currentPlaylistData.map(url => ({
+        url: url,
+        // 尝试从 UI 缓存中拿标题，拿不到就用 "Unknown" 或 截断的URL
+        title: UI.localMetaCache[url] ? UI.localMetaCache[url].title : (url.split('/').pop() || 'Unknown Song')
+    }));
+    
+    const dataStr = JSON.stringify(exportList, null, 2);
     const blob = new Blob([dataStr], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
+    const dlUrl = URL.createObjectURL(blob);
     
     const a = document.createElement('a');
-    a.href = url;
-    a.download = `playlist_${new Date().toISOString().slice(0,10)}.json`;
+    a.href = dlUrl;
+    a.download = `playlist_full_${new Date().toISOString().slice(0,10)}.json`;
     a.click();
-    URL.revokeObjectURL(url);
+    URL.revokeObjectURL(dlUrl);
 });
 
-// --- 新增：导入功能 ---
+// --- 2. 导入功能 (模态框与选择逻辑) ---
 const fileInput = document.getElementById('fileInput');
+const importModal = document.getElementById('importModal');
+const importListBody = document.getElementById('importListBody');
+const selectedCountSpan = document.getElementById('selectedCount');
+let importedItemsCache = []; // 临时存储导入的数据
+
+// 点击导入按钮 -> 触发文件选择
 document.getElementById('importBtn').addEventListener('click', () => {
-    if (!socket || !socket.connected) {
-        alert("请先连接服务器");
-        return;
-    }
-    fileInput.click(); // 触发隐藏的文件选择框
+    if (!socket || !socket.connected) { alert("请先连接服务器"); return; }
+    fileInput.click();
 });
 
+// 文件被选择后 -> 读取并显示模态框
 fileInput.addEventListener('change', (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -139,31 +125,123 @@ fileInput.addEventListener('change', (e) => {
     const reader = new FileReader();
     reader.onload = (event) => {
         try {
-            const importedList = JSON.parse(event.target.result);
-            if (!Array.isArray(importedList)) {
-                throw new Error("文件格式错误：必须是URL数组");
-            }
-            
-            // 确认提示
-            if(!confirm(`确认导入 ${importedList.length} 首歌曲到当前列表？`)) return;
+            const json = JSON.parse(event.target.result);
+            if (!Array.isArray(json)) throw new Error("格式错误");
 
-            // 批量添加 (简单的循环发送)
-            let count = 0;
-            importedList.forEach(url => {
-                // 简单的去重检查
-                if (!currentPlaylistData.includes(url)) {
-                    socket.emit('add_song', { url });
-                    count++;
-                }
+            // 兼容旧版纯URL数组格式，统一转为对象格式
+            importedItemsCache = json.map(item => {
+                if (typeof item === 'string') return { url: item, title: item };
+                return item;
             });
-            alert(`导入完成，新增 ${count} 首歌曲`);
+
+            renderImportModal();
+            importModal.showModal(); // 显示 DaisyUI Modal
             
         } catch (err) {
             console.error(err);
-            alert("导入失败：文件格式不正确 (需要标准的 JSON 数组)");
+            alert("文件解析失败");
         }
-        // 清空 input 允许重复导入同一文件
-        fileInput.value = '';
+        fileInput.value = ''; // 重置以允许重复导入
     };
     reader.readAsText(file);
+});
+
+// 渲染模态框列表
+function renderImportModal() {
+    importListBody.innerHTML = '';
+    
+    importedItemsCache.forEach((item, index) => {
+        const tr = document.createElement('tr');
+        tr.className = "playlist-row hover group"; // group 用于控制子元素显示
+        // 检查是否已经在当前播放列表中，如果是，默认置灰或标记
+        const isExists = currentPlaylistData.includes(item.url);
+        
+        tr.className = "hover:bg-base-200 transition-colors select-none";
+        tr.dataset.index = index;
+        tr.dataset.selected = "false"; // 默认不选中
+
+        // 如果已存在，样式做特殊处理（可选）
+        if (isExists) {
+            tr.classList.add('opacity-50');
+            tr.title = "当前歌单已存在";
+        }
+
+        tr.innerHTML = `
+            <td class="font-medium">${item.title || '无标题'}</td>
+            <td class="text-xs text-gray-500 truncate max-w-[200px]">${item.url}</td>
+        `;
+
+        // 点击行：切换选中状态
+        tr.addEventListener('click', () => {
+            const isSelected = tr.dataset.selected === "true";
+            toggleRow(tr, !isSelected);
+            updateCount();
+        });
+
+        importListBody.appendChild(tr);
+    });
+    
+    updateCount();
+}
+
+// 切换行的选中样式
+function toggleRow(tr, selected) {
+    tr.dataset.selected = selected ? "true" : "false";
+    if (selected) {
+        tr.classList.add('bg-primary', 'text-primary-content');
+        tr.classList.remove('hover:bg-base-200'); // 移除 hover 避免闪烁
+    } else {
+        tr.classList.remove('bg-primary', 'text-primary-content');
+        tr.classList.add('hover:bg-base-200');
+    }
+}
+
+// 更新选中计数
+function updateCount() {
+    const count = importListBody.querySelectorAll('[data-selected="true"]').length;
+    selectedCountSpan.innerText = `已选: ${count}`;
+}
+
+// 全选 / 反选 按钮逻辑
+document.getElementById('selectAllBtn').addEventListener('click', (e) => {
+    // 阻止这个按钮提交表单（如果在form里）
+    e.preventDefault(); 
+    
+    const allRows = importListBody.querySelectorAll('tr');
+    // 如果当前有未选中的，则全选；如果全部都选中了，则全不选
+    const hasUnselected = Array.from(allRows).some(tr => tr.dataset.selected === "false");
+    
+    allRows.forEach(tr => toggleRow(tr, hasUnselected));
+    updateCount();
+});
+
+// 确认导入按钮
+document.getElementById('confirmImportBtn').addEventListener('click', (e) => {
+    // 这里的 e.preventDefault() 取决于 DaisyUI modal 的 form method="dialog" 行为
+    // 如果需要保留Modal关闭动画，通常不需要 preventDefault，
+    // 但我们需要先执行逻辑再让它关闭。
+    
+    const selectedRows = importListBody.querySelectorAll('[data-selected="true"]');
+    if (selectedRows.length === 0) return;
+
+    let addedCount = 0;
+    selectedRows.forEach(tr => {
+        const index = tr.dataset.index;
+        const item = importedItemsCache[index];
+        
+        // 双重检查去重
+        if (!currentPlaylistData.includes(item.url)) {
+            // 这里还可以顺便把 title 塞回 UI.localMetaCache，避免导入后重新解析一遍！
+            // 这是一个优化点
+            if (item.title) {
+                UI.localMetaCache[item.url] = { title: item.title, filename: null }; 
+            }
+            
+            socket.emit('add_song', { url: item.url });
+            addedCount++;
+        }
+    });
+    
+    console.log(`已提交导入 ${addedCount} 首歌曲`);
+    // 模态框会自动关闭，因为按钮在 form method="dialog" 内
 });

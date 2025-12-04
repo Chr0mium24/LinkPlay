@@ -4,92 +4,147 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Together Listen (Sync)</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
     <link href="https://cdn.jsdelivr.net/npm/daisyui@3.9.4/dist/full.css" rel="stylesheet" />
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"></script>
     
     <style>
-        /* 自定义滚动条样式，让列表更好看 */
-        ::-webkit-scrollbar { width: 6px; height: 6px; }
-        ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: #4b5563; border-radius: 3px; }
-        ::-webkit-scrollbar-thumb:hover { background: #6b7280; }
-        .glass-panel { background: rgba(20, 20, 30, 0.7); backdrop-filter: blur(10px); }
+        body { font-family: 'Inter', sans-serif; }
+        
+        /* 隐藏滚动条但保留功能 */
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+        /* 自定义细滚动条 */
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; height: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 10px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.3); }
+
+        /* 玻璃拟态增强 */
+        .glass-panel { 
+            background: rgba(15, 23, 42, 0.6); 
+            backdrop-filter: blur(16px); 
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        /* 视频背后的氛围光晕 */
+        .video-glow {
+            box-shadow: 0 0 80px -20px rgba(var(--p), 0.3);
+        }
+        
+        /* 表格行样式优化 */
+        .playlist-row td {
+            border-bottom: 1px solid rgba(255,255,255,0.02) !important;
+            transition: all 0.2s ease;
+        }
+        .playlist-row:hover td {
+            background-color: rgba(255,255,255,0.05) !important;
+        }
     </style>
 </head>
-<body class="bg-gradient-to-br from-gray-900 to-black h-screen w-screen overflow-hidden text-base-content flex flex-col font-sans">
+<body class="bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-slate-900 via-[#0a0a0a] to-black h-screen w-screen overflow-hidden text-slate-200 flex flex-col selection:bg-primary selection:text-primary-content">
 
-    <div class="navbar glass-panel border-b border-white/10 shrink-0 z-50 px-4 py-2">
+    <div class="navbar glass-panel z-50 px-6 py-3 shrink-0">
         <div class="flex-1">
-            <a class="btn btn-ghost normal-case text-xl text-primary gap-2">
-                <span class="text-2xl">🎧</span> 
-                <span class="hidden sm:inline">Sync Player</span>
+            <a class="btn btn-ghost btn-sm normal-case gap-3 hover:bg-white/5 group">
+                <div class="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-primary group-hover:scale-110 transition-transform">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-4 h-4">
+                        <path fill-rule="evenodd" d="M19.952 1.651a.75.75 0 01.298.599V16.303a3 3 0 01-2.176 2.884l-1.32.377a2.553 2.553 0 11-1.403-4.909l2.311-.66a1.5 1.5 0 001.088-1.442V6.994l-9 2.572v9.737a3 3 0 01-2.176 2.884l-1.32.377a2.553 2.553 0 11-1.403-4.909l2.311-.66a1.5 1.5 0 001.088-1.442V9.017 5.25a.75.75 0 01.544-.721l10.5-3a.75.75 0 01.658.122z" clip-rule="evenodd" />
+                    </svg>
+                </div>
+                <span class="font-bold text-lg tracking-tight">Sync Player</span>
             </a>
         </div>
-        <div class="flex-none gap-2">
-            <div class="join shadow-lg">
-                <input type="text" id="serverUrlInput" placeholder="服务器地址 (ws://...)" 
-                       class="input input-sm input-bordered join-item w-32 sm:w-64 bg-base-200/50 focus:bg-base-100 transition-all" />
-                <button id="connectBtn" class="btn btn-sm btn-primary join-item">连接</button>
+        <div class="flex-none gap-3">
+            <div class="join bg-base-100/30 rounded-lg p-1 border border-white/5">
+                <input type="text" id="serverUrlInput" placeholder="ws://localhost:3000" 
+                       class="input input-xs input-ghost join-item w-32 sm:w-48 focus:bg-transparent text-xs placeholder:text-gray-600" />
+                <button id="connectBtn" class="btn btn-xs btn-primary join-item px-4 font-medium">Link</button>
             </div>
         </div>
     </div>
 
     <div class="flex-1 p-4 lg:p-6 overflow-hidden">
-        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 h-full max-w-[1600px] mx-auto">
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 h-full max-w-[1800px] mx-auto">
             
-            <div class="lg:col-span-8 flex flex-col gap-4 h-full overflow-y-auto lg:overflow-visible">
-                <div class="relative w-full aspect-video bg-black rounded-2xl shadow-2xl overflow-hidden group border border-white/5">
+            <div class="lg:col-span-9 flex flex-col gap-5 h-full overflow-y-auto lg:overflow-visible no-scrollbar">
+                
+                <div class="relative w-full aspect-video bg-black rounded-2xl shadow-2xl overflow-hidden group border border-white/5 video-glow">
                     <video id="player" class="w-full h-full object-contain" controls></video>
                     
-                    <div id="loadingOverlay" class="absolute inset-0 bg-black/80 flex flex-col items-center justify-center hidden z-20 backdrop-blur-sm">
-                        <span class="loading loading-ring loading-lg text-primary"></span>
-                        <span class="mt-4 text-white font-medium tracking-wide">资源同步中...</span>
+                    <div id="loadingOverlay" class="absolute inset-0 bg-black/60 flex flex-col items-center justify-center hidden z-20 backdrop-blur-md transition-all">
+                        <span class="loading loading-bars loading-lg text-primary"></span>
+                        <span class="mt-4 text-white/80 font-medium text-sm tracking-widest uppercase">Syncing Stream</span>
                     </div>
                 </div>
 
-                <div class="bg-base-100/50 rounded-xl p-4 border border-white/5 shadow-lg backdrop-blur flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                    <div class="flex-1 min-w-0">
-                        <h2 id="currentSongTitle" class="text-xl font-bold text-white truncate">等待播放...</h2>
-                        <div class="text-xs text-gray-400 mt-1 truncate font-mono opacity-70" id="currentSongUrl">暂无链接</div>
-                    </div>
-                    <div class="badge badge-outline gap-2 p-3" id="syncStatus">
-                        <div class="w-2 h-2 rounded-full bg-error animate-pulse"></div> 未连接
+                <div class="glass-panel rounded-2xl p-5 flex flex-col sm:flex-row justify-between items-center gap-4">
+                    <div class="flex-1 min-w-0 text-center sm:text-left">
+                        <div class="flex items-center justify-center sm:justify-start gap-3 mb-1">
+                            <span class="badge badge-primary badge-xs py-2 px-2 uppercase font-bold tracking-wider opacity-80">Now Playing</span>
+                            <div id="syncStatus" class="flex items-center gap-2 text-xs font-mono text-error">
+                                <span class="relative flex h-2 w-2">
+                                  <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-error opacity-75"></span>
+                                  <span class="relative inline-flex rounded-full h-2 w-2 bg-error"></span>
+                                </span>
+                                Disconnected
+                            </div>
+                        </div>
+                        <h2 id="currentSongTitle" class="text-2xl font-bold text-white truncate drop-shadow-md">等待播放...</h2>
+                        <div class="text-xs text-slate-400 mt-1 truncate font-mono bg-black/20 inline-block px-2 py-1 rounded" id="currentSongUrl">NO SOURCE</div>
                     </div>
                 </div>
             </div>
 
-            <div class="lg:col-span-4 flex flex-col h-full bg-base-100/40 rounded-2xl border border-white/5 shadow-xl backdrop-blur overflow-hidden">
-                <div class="p-4 border-b border-white/5 bg-base-200/30 flex justify-between items-center shrink-0">
-                    <h3 class="font-bold text-lg flex items-center gap-2">
-                        📜 播放列表
+            <div class="lg:col-span-3 flex flex-col h-full glass-panel rounded-2xl overflow-hidden shadow-2xl">
+                <div class="p-4 border-b border-white/5 bg-gradient-to-b from-white/5 to-transparent flex justify-between items-center shrink-0">
+                    <h3 class="font-bold text-sm uppercase tracking-widest text-slate-400 flex items-center gap-2">
+                        Queue
                     </h3>
-                    <div class="join">
-                        <button id="importBtn" class="btn btn-xs btn-ghost join-item opacity-70 hover:opacity-100">导入</button>
-                        <button id="exportBtn" class="btn btn-xs btn-ghost join-item opacity-70 hover:opacity-100">导出</button>
+                    <div class="dropdown dropdown-end">
+                        <label tabindex="0" class="btn btn-square btn-ghost btn-xs text-slate-400">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M12 6.75a.75.75 0 110-1.5.75.75 0 010 1.5zM12 12.75a.75.75 0 110-1.5.75.75 0 010 1.5zM12 18.75a.75.75 0 110-1.5.75.75 0 010 1.5z" />
+                            </svg>
+                        </label>
+                        <ul tabindex="0" class="dropdown-content z-20 menu p-2 shadow bg-base-200 rounded-box w-32 text-xs border border-white/10">
+                            <li><a id="importBtn">导入 JSON</a></li>
+                            <li><a id="exportBtn">导出列表</a></li>
+                        </ul>
                     </div>
                     <input type="file" id="fileInput" accept=".json" class="hidden" />
                 </div>
 
-                <div class="flex-1 overflow-y-auto p-2">
-                    <table class="table table-xs w-full">
-                        <thead class="bg-base-200/50 text-base-content/60 sticky top-0 z-10 backdrop-blur">
+                <div class="flex-1 overflow-y-auto custom-scrollbar p-2">
+                    <table class="table table-xs w-full text-slate-300">
+                        <thead class="text-slate-500 sticky top-0 bg-[#0f172a] z-10 shadow-sm">
                             <tr>
-                                <th class="w-12 text-center">点播</th>
-                                <th>歌曲名</th>
-                                <th class="w-10 text-center">删</th>
+                                <th class="w-8">#</th>
+                                <th>Title</th>
+                                <th class="w-8 text-right">Op</th>
                             </tr>
                         </thead>
-                        <tbody id="playlistBody">
+                        <tbody id="playlistBody" class="font-medium">
                             </tbody>
                     </table>
+                    
+                    <div id="emptyState" class="hidden flex-col items-center justify-center h-32 text-slate-600">
+                        <span class="text-2xl opacity-20">🎵</span>
+                        <span class="text-xs mt-2">列表为空</span>
+                    </div>
                 </div>
 
-                <div class="p-3 bg-base-200/50 border-t border-white/5 shrink-0">
-                    <div class="flex gap-2">
-                        <input id="newSongUrl" class="input input-sm input-bordered w-full bg-base-100/50" placeholder="粘贴视频/音频链接..." />
-                        <button id="addSongBtn" class="btn btn-sm btn-accent shadow-lg shadow-accent/20">
-                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5">
+                <div class="p-4 bg-[#0a0f1c] border-t border-white/5 shrink-0">
+                    <div class="relative">
+                        <input id="newSongUrl" class="input input-sm w-full bg-base-100/50 border-white/10 focus:border-primary focus:outline-none pr-10 text-xs rounded-lg placeholder:text-slate-600 transition-colors" placeholder="粘贴媒体链接..." />
+                        <button id="addSongBtn" class="absolute right-1 top-1 btn btn-xs btn-primary btn-square rounded-md">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-3 h-3">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
                             </svg>
                         </button>
@@ -99,6 +154,41 @@
 
         </div>
     </div>
+
+    <dialog id="importModal" class="modal modal-bottom sm:modal-middle backdrop-blur-sm">
+        <div class="modal-box bg-[#1a1f2e] border border-white/10 shadow-2xl rounded-2xl">
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="font-bold text-lg text-white">导入播放列表</h3>
+                <div class="space-x-2">
+                    <button id="selectAllBtn" class="btn btn-xs btn-outline text-slate-400">全选 / 取消</button>
+                    <span id="selectedCount" class="text-xs font-mono text-primary bg-primary/10 px-2 py-1 rounded">已选: 0</span>
+                </div>
+            </div>
+            
+            <div class="max-h-[50vh] overflow-y-auto custom-scrollbar border border-white/5 rounded-xl bg-black/20">
+                <table class="table table-pin-rows table-xs">
+                    <thead class="text-slate-400 bg-[#1a1f2e]">
+                        <tr>
+                            <th>选择</th>
+                            <th class="w-1/3">源链接</th>
+                        </tr>
+                    </thead>
+                    <tbody id="importListBody" class="cursor-pointer text-slate-300">
+                        </tbody>
+                </table>
+            </div>
+
+            <div class="modal-action mt-6">
+                <form method="dialog" class="flex gap-2">
+                    <button class="btn btn-sm btn-ghost hover:bg-white/5">取消</button>
+                    <button id="confirmImportBtn" class="btn btn-sm btn-primary px-6">确认导入</button>
+                </form>
+            </div>
+        </div>
+        <form method="dialog" class="modal-backdrop">
+            <button>close</button>
+        </form>
+    </dialog>
 
     <script type="module" src="/static/js/main.js"></script>
 </body>
