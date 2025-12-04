@@ -1,10 +1,21 @@
 import os
 import sys
+import io
+# --- 【修复】PyInstaller 打包后控制台中文乱码问题 ---
+# 强制将标准输出和错误输出设置为 utf-8
+if sys.stdout:
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
+if sys.stderr:
+    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
+# -----------------------------------------------
+
 import json
 import webbrowser
 from flask import Flask, render_template, request, jsonify, send_from_directory
 from yt_dlp import YoutubeDL
 from flask_cors import CORS
+
+
 
 # --- 核心路径处理逻辑 ---
 def get_base_path():
@@ -77,7 +88,6 @@ def resolve_song():
     
     # yt-dlp 配置 (注意 ffmpeg 位置)
     ydl_opts = {
-        'format': 'best[ext=mp4]',
         'outtmpl': f'{DOWNLOAD_FOLDER}/%(id)s.%(ext)s',
         'quiet': False, # 开启日志，方便在CMD看进度
         'no_warnings': True,

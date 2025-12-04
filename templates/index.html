@@ -1,76 +1,105 @@
 <!DOCTYPE html>
-<html lang="zh-CN" data-theme="dark">
+<html lang="zh-CN" data-theme="night">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Together Listen (Sync)</title>
     <link href="https://cdn.jsdelivr.net/npm/daisyui@3.9.4/dist/full.css" rel="stylesheet" />
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Socket.IO Client -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"></script>
+    
+    <style>
+        /* 自定义滚动条样式，让列表更好看 */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #4b5563; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #6b7280; }
+        .glass-panel { background: rgba(20, 20, 30, 0.7); backdrop-filter: blur(10px); }
+    </style>
 </head>
-<body class="bg-base-200 min-h-screen p-4 flex flex-col items-center">
+<body class="bg-gradient-to-br from-gray-900 to-black h-screen w-screen overflow-hidden text-base-content flex flex-col font-sans">
 
-    <div class="container max-w-4xl mx-auto space-y-6">
-        <!-- Header -->
-        <div class="navbar bg-base-100 rounded-box shadow-lg">
-            <div class="flex-1">
-                <a class="btn btn-ghost normal-case text-xl">🎧 Sync Player</a>
+    <div class="navbar glass-panel border-b border-white/10 shrink-0 z-50 px-4 py-2">
+        <div class="flex-1">
+            <a class="btn btn-ghost normal-case text-xl text-primary gap-2">
+                <span class="text-2xl">🎧</span> 
+                <span class="hidden sm:inline">Sync Player</span>
+            </a>
+        </div>
+        <div class="flex-none gap-2">
+            <div class="join shadow-lg">
+                <input type="text" id="serverUrlInput" placeholder="服务器地址 (ws://...)" 
+                       class="input input-sm input-bordered join-item w-32 sm:w-64 bg-base-200/50 focus:bg-base-100 transition-all" />
+                <button id="connectBtn" class="btn btn-sm btn-primary join-item">连接</button>
             </div>
-             <div class="flex-none gap-2">
-        <!-- 移除默认 value，增加 placeholder -->
-        <input type="text" id="serverUrlInput" placeholder="输入公网服务器地址 (ws://...)" 
-               class="input input-bordered w-full max-w-xs" />
-        <button id="connectBtn" class="btn btn-primary">连接</button>
+        </div>
     </div>
-        </div>
 
-        <!-- Player -->
-        <div class="card w-full bg-base-100 shadow-xl">
-            <figure class="px-4 pt-4 relative aspect-video bg-black flex items-center justify-center">
-                <video id="player" class="w-full h-full" controls></video>
-                <!-- Loading 遮罩 -->
-                <div id="loadingOverlay" class="absolute inset-0 bg-black/80 flex flex-col items-center justify-center hidden">
-                    <span class="loading loading-spinner loading-lg text-primary"></span>
-                    <span class="mt-2 text-white">正在同步 / 下载资源...</span>
-                </div>
-            </figure>
-            <div class="card-body py-4">
-                <h2 class="card-title text-lg" id="currentSongTitle">等待播放...</h2>
-                <div class="flex justify-between items-center text-xs text-gray-500">
-                    <span id="currentSongUrl" class="truncate max-w-md"></span>
-                    <span id="syncStatus">未连接</span>
-                </div>
-            </div>
-        </div>
-
-        <!-- Playlist -->
-        <div class="card w-full bg-base-100 shadow-xl">
-            <div class="card-body">
-                <div class="flex justify-between items-center mb-4">
-                    <h2 class="card-title">播放列表</h2>
-                    <div class="join">
-                        <input id="newSongUrl" class="input input-bordered input-sm join-item" placeholder="输入视频链接..." />
-                        <button id="addSongBtn" class="btn btn-sm btn-accent join-item">添加</button>
+    <div class="flex-1 p-4 lg:p-6 overflow-hidden">
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 h-full max-w-[1600px] mx-auto">
+            
+            <div class="lg:col-span-8 flex flex-col gap-4 h-full overflow-y-auto lg:overflow-visible">
+                <div class="relative w-full aspect-video bg-black rounded-2xl shadow-2xl overflow-hidden group border border-white/5">
+                    <video id="player" class="w-full h-full object-contain" controls></video>
+                    
+                    <div id="loadingOverlay" class="absolute inset-0 bg-black/80 flex flex-col items-center justify-center hidden z-20 backdrop-blur-sm">
+                        <span class="loading loading-ring loading-lg text-primary"></span>
+                        <span class="mt-4 text-white font-medium tracking-wide">资源同步中...</span>
                     </div>
                 </div>
-                <div class="overflow-x-auto">
-                    <table class="table table-zebra">
-                        <thead>
-                            <tr>
-                                <th class="w-16">操作</th>
-                                <th>歌曲名</th>
-                                <th class="w-16">删除</th>
-                            </tr>
-                        </thead>
-                        <tbody id="playlistBody"></tbody>
-                    </table>
+
+                <div class="bg-base-100/50 rounded-xl p-4 border border-white/5 shadow-lg backdrop-blur flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                    <div class="flex-1 min-w-0">
+                        <h2 id="currentSongTitle" class="text-xl font-bold text-white truncate">等待播放...</h2>
+                        <div class="text-xs text-gray-400 mt-1 truncate font-mono opacity-70" id="currentSongUrl">暂无链接</div>
+                    </div>
+                    <div class="badge badge-outline gap-2 p-3" id="syncStatus">
+                        <div class="w-2 h-2 rounded-full bg-error animate-pulse"></div> 未连接
+                    </div>
                 </div>
             </div>
+
+            <div class="lg:col-span-4 flex flex-col h-full bg-base-100/40 rounded-2xl border border-white/5 shadow-xl backdrop-blur overflow-hidden">
+                <div class="p-4 border-b border-white/5 bg-base-200/30 flex justify-between items-center shrink-0">
+                    <h3 class="font-bold text-lg flex items-center gap-2">
+                        📜 播放列表
+                    </h3>
+                    <div class="join">
+                        <button id="importBtn" class="btn btn-xs btn-ghost join-item opacity-70 hover:opacity-100">导入</button>
+                        <button id="exportBtn" class="btn btn-xs btn-ghost join-item opacity-70 hover:opacity-100">导出</button>
+                    </div>
+                    <input type="file" id="fileInput" accept=".json" class="hidden" />
+                </div>
+
+                <div class="flex-1 overflow-y-auto p-2">
+                    <table class="table table-xs w-full">
+                        <thead class="bg-base-200/50 text-base-content/60 sticky top-0 z-10 backdrop-blur">
+                            <tr>
+                                <th class="w-12 text-center">点播</th>
+                                <th>歌曲名</th>
+                                <th class="w-10 text-center">删</th>
+                            </tr>
+                        </thead>
+                        <tbody id="playlistBody">
+                            </tbody>
+                    </table>
+                </div>
+
+                <div class="p-3 bg-base-200/50 border-t border-white/5 shrink-0">
+                    <div class="flex gap-2">
+                        <input id="newSongUrl" class="input input-sm input-bordered w-full bg-base-100/50" placeholder="粘贴视频/音频链接..." />
+                        <button id="addSongBtn" class="btn btn-sm btn-accent shadow-lg shadow-accent/20">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
         </div>
     </div>
 
-    <!-- 模块化入口 -->
     <script type="module" src="/static/js/main.js"></script>
 </body>
 </html>
