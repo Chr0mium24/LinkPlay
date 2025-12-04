@@ -13,6 +13,7 @@ export class SyncPlayer {
         
         this.currentState = null;
         this.isInternalUpdate = false; // "锁"：区分是代码调整的还是用户点击的
+        this.lastUserActionTime = 0;
         
         this.bindEvents();
         this.startSyncLoop();
@@ -25,6 +26,8 @@ export class SyncPlayer {
             this.video.addEventListener(evt, () => {
                 if (this.isInternalUpdate) return; // 如果是代码在调整，不发送
                 
+                this.lastUserActionTime = Date.now();
+
                 const actionData = { action: evt };
                 if (evt === 'seeked') {
                     actionData.action = 'seek';
@@ -90,6 +93,9 @@ export class SyncPlayer {
         
         // 如果视频没准备好（缓冲中），暂不强行同步
         if (this.video.readyState < 2) return;
+
+        // Grace period after user action
+        if (Date.now() - this.lastUserActionTime < 500) return;
 
         // 1. 计算目标时间
         const serverNow = this.timeSyncer.getServerTime();
