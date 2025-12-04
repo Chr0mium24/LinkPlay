@@ -17,12 +17,12 @@
             <div class="flex-1">
                 <a class="btn btn-ghost normal-case text-xl">🎧 Sync Player</a>
             </div>
-            <div class="flex-none gap-2">
-                <!-- 默认地址在这里 -->
-                <input type="text" id="serverUrlInput" value="http://127.0.0.1:5001" 
-                       class="input input-bordered w-full max-w-xs" />
-                <button id="connectBtn" class="btn btn-primary">连接</button>
-            </div>
+             <div class="flex-none gap-2">
+        <!-- 移除默认 value，增加 placeholder -->
+        <input type="text" id="serverUrlInput" placeholder="输入公网服务器地址 (ws://...)" 
+               class="input input-bordered w-full max-w-xs" />
+        <button id="connectBtn" class="btn btn-primary">连接</button>
+    </div>
         </div>
 
         <!-- Player -->

@@ -1,3 +1,4 @@
+/* static/js/main.js */
 import { TimeSyncer } from './ntp.js';
 import { SyncPlayer } from './player.js';
 import { UI } from './ui.js';
@@ -9,14 +10,26 @@ let player = null;
 const connectBtn = document.getElementById('connectBtn');
 const urlInput = document.getElementById('serverUrlInput');
 
-// 连接逻辑
+// --- 新增：加载本地存储的地址 ---
+const savedUrl = localStorage.getItem('server_url');
+if (savedUrl) {
+    urlInput.value = savedUrl;
+}
+// ----------------------------
+
 connectBtn.addEventListener('click', () => {
-    const serverUrl = urlInput.value;
-    if (!serverUrl) return;
+    const serverUrl = urlInput.value.trim();
+    if (!serverUrl) {
+        alert("请输入服务器地址");
+        return;
+    }
+
+    // --- 新增：保存地址到本地 ---
+    localStorage.setItem('server_url', serverUrl);
+    // -------------------------
 
     if (socket) socket.disconnect();
 
-    // 初始化 SocketIO
     socket = io(serverUrl);
 
     socket.on('connect', () => {
@@ -24,32 +37,33 @@ connectBtn.addEventListener('click', () => {
         connectBtn.innerText = "已连接";
         connectBtn.classList.replace('btn-primary', 'btn-success');
 
-        // 1. 启动 NTP
         timeSyncer = new TimeSyncer(socket);
         timeSyncer.startSync();
 
-        // 2. 初始化播放器
         const videoEl = document.getElementById('player');
         player = new SyncPlayer(videoEl, socket, timeSyncer);
     });
 
     socket.on('disconnect', () => {
-        connectBtn.innerText = "连接断开";
+        connectBtn.innerText = "断开连接";
         connectBtn.classList.replace('btn-success', 'btn-error');
     });
 
-    // 监听歌单更新
+    socket.on('connect_error', (err) => {
+        console.error("连接失败", err);
+        connectBtn.innerText = "连接失败";
+        connectBtn.classList.replace('btn-primary', 'btn-error');
+    });
+
     socket.on('update_playlist', (playlist) => {
         UI.renderPlaylist(playlist, socket);
     });
 
-    // 监听播放状态
     socket.on('sync_state', (state) => {
         if (player) player.updateState(state);
     });
 });
 
-// 添加歌曲按钮
 document.getElementById('addSongBtn').addEventListener('click', () => {
     const input = document.getElementById('newSongUrl');
     const url = input.value.trim();
