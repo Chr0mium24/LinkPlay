@@ -14,7 +14,9 @@ export class SyncPlayer {
         this.currentState = null;
         this.isInternalUpdate = false; // "锁"：区分是代码调整的还是用户点击的
         this.lastUserActionTime = 0;
-        
+        this.syncInterval = null;
+        this.eventListeners = {}; // 存储事件监听器引用
+
         this.bindEvents();
         this.startSyncLoop();
     }
@@ -23,8 +25,8 @@ export class SyncPlayer {
     bindEvents() {
         const events = ['play', 'pause', 'seeked'];
         events.forEach(evt => {
-            this.video.addEventListener(evt, () => {
-                if (this.isInternalUpdate) return; // 如果是代码在调整，不发送
+            const listener = () => {
+                if (this.isInternalUpdate) return;
                 
                 this.lastUserActionTime = Date.now();
 
@@ -36,8 +38,24 @@ export class SyncPlayer {
                 
                 console.log(`User Action: ${evt}`);
                 this.socket.emit('control_action', actionData);
-            });
+            };
+            this.eventListeners[evt] = listener;
+            this.video.addEventListener(evt, listener);
         });
+    }
+
+    destroy() {
+        console.log("Destroying SyncPlayer instance...");
+        // 清除定时器
+        if (this.syncInterval) {
+            clearInterval(this.syncInterval);
+            this.syncInterval = null;
+        }
+        // 移除事件监听
+        for (const evt in this.eventListeners) {
+            this.video.removeEventListener(evt, this.eventListeners[evt]);
+        }
+        this.eventListeners = {};
     }
 
     // 更新服务器状态
@@ -83,7 +101,7 @@ export class SyncPlayer {
 
     // 核心循环：每 100ms 检查一次
     startSyncLoop() {
-        setInterval(() => {
+        this.syncInterval = setInterval(() => {
             this.tick();
         }, 100);
     }

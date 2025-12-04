@@ -19,7 +19,12 @@ connectBtn.addEventListener('click', () => {
     if (!serverUrl) { alert("请输入服务器地址"); return; }
     localStorage.setItem('server_url', serverUrl);
 
+    // --- Cleanup existing connection ---
+    if (player) player.destroy();
+    if (timeSyncer) timeSyncer.destroy();
     if (socket) socket.disconnect();
+    // ------------------------------------
+
     socket = io(serverUrl);
 
     socket.on('connect', () => {

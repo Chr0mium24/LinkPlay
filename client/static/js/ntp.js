@@ -11,6 +11,11 @@ export class TimeSyncer {
         this.socket.on('time_sync_response', (data) => this.handleResponse(data));
     }
 
+    destroy() {
+        console.log("Destroying TimeSyncer instance...");
+        this.socket.off('time_sync_response');
+    }
+
     async startSync() {
         console.log("Starting NTP Sync...");
         // 连续发送5次Ping取平均值（简化起见，这里只发，由handleResponse更新）
