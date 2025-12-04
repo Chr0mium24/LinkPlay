@@ -3,74 +3,74 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Together Listen</title>
-    <!-- DaisyUI & Tailwind CSS -->
-    <link href="https://cdn.jsdelivr.net/npm/daisyui@3.9.4/dist/full.css" rel="stylesheet" type="text/css" />
+    <title>Together Listen (Sync)</title>
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@3.9.4/dist/full.css" rel="stylesheet" />
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Socket.IO -->
+    <!-- Socket.IO Client -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"></script>
 </head>
 <body class="bg-base-200 min-h-screen p-4 flex flex-col items-center">
 
     <div class="container max-w-4xl mx-auto space-y-6">
-        
         <!-- Header -->
         <div class="navbar bg-base-100 rounded-box shadow-lg">
             <div class="flex-1">
-                <a class="btn btn-ghost normal-case text-xl">🎧 一起听</a>
+                <a class="btn btn-ghost normal-case text-xl">🎧 Sync Player</a>
             </div>
             <div class="flex-none gap-2">
-                <div class="form-control flex flex-row gap-2">
-                    <input type="text" id="serverUrlInput" placeholder="公网服务器地址 (ws://...)" class="input input-bordered w-full max-w-xs" />
-                    <button id="connectBtn" class="btn btn-primary">连接</button>
-                </div>
+                <!-- 默认地址在这里 -->
+                <input type="text" id="serverUrlInput" value="http://127.0.0.1:5001" 
+                       class="input input-bordered w-full max-w-xs" />
+                <button id="connectBtn" class="btn btn-primary">连接</button>
             </div>
         </div>
 
-        <!-- Player Area -->
+        <!-- Player -->
         <div class="card w-full bg-base-100 shadow-xl">
             <figure class="px-4 pt-4 relative aspect-video bg-black flex items-center justify-center">
                 <video id="player" class="w-full h-full" controls></video>
-                <div id="loadingOverlay" class="absolute inset-0 bg-black/80 flex items-center justify-center hidden">
+                <!-- Loading 遮罩 -->
+                <div id="loadingOverlay" class="absolute inset-0 bg-black/80 flex flex-col items-center justify-center hidden">
                     <span class="loading loading-spinner loading-lg text-primary"></span>
-                    <span class="ml-2">正在下载/缓冲...</span>
+                    <span class="mt-2 text-white">正在同步 / 下载资源...</span>
                 </div>
             </figure>
-            <div class="card-body">
-                <h2 class="card-title" id="currentSongTitle">等待播放...</h2>
-                <p id="currentSongUrl" class="text-sm text-gray-500 truncate"></p>
+            <div class="card-body py-4">
+                <h2 class="card-title text-lg" id="currentSongTitle">等待播放...</h2>
+                <div class="flex justify-between items-center text-xs text-gray-500">
+                    <span id="currentSongUrl" class="truncate max-w-md"></span>
+                    <span id="syncStatus">未连接</span>
+                </div>
             </div>
         </div>
 
-        <!-- Playlist Area -->
+        <!-- Playlist -->
         <div class="card w-full bg-base-100 shadow-xl">
             <div class="card-body">
-                <h2 class="card-title flex justify-between">
-                    播放列表
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="card-title">播放列表</h2>
                     <div class="join">
                         <input id="newSongUrl" class="input input-bordered input-sm join-item" placeholder="输入视频链接..." />
                         <button id="addSongBtn" class="btn btn-sm btn-accent join-item">添加</button>
                     </div>
-                </h2>
-                
+                </div>
                 <div class="overflow-x-auto">
-                    <table class="table">
+                    <table class="table table-zebra">
                         <thead>
                             <tr>
-                                <th>状态</th>
-                                <th>歌曲名 (本地解析)</th>
-                                <th>操作</th>
+                                <th class="w-16">操作</th>
+                                <th>歌曲名</th>
+                                <th class="w-16">删除</th>
                             </tr>
                         </thead>
-                        <tbody id="playlistBody">
-                            <!-- 列表项将由JS动态生成 -->
-                        </tbody>
+                        <tbody id="playlistBody"></tbody>
                     </table>
                 </div>
             </div>
         </div>
     </div>
 
-    <script src="/script.js"></script>
+    <!-- 模块化入口 -->
+    <script type="module" src="/static/js/main.js"></script>
 </body>
 </html>
