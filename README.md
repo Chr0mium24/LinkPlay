@@ -33,3 +33,8 @@ folded with `ffmpeg.exe`, `ffprobe.exe`
 `uv run pyinstaller -F --name "LinkPlay" --add-data "templates:templates" --add-data "static:static" client.py`
 
 `chmod +x LinkPlay`
+
+## Future Plan
+
+- Android
+- Open server http is a site can add link
